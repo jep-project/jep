@@ -1,7 +1,6 @@
 # JEP - Joined Editors Protocol
 
 
-
 ## Protocol Overview
 
 Communication in a typical JEP setup occurs between a frontend (editor or editor plugin) and a backend (language support logic).
@@ -26,6 +25,121 @@ The backend in turn responds by sending various kinds of information as it becom
 
 When the file or the editor is closed, the backend will be shut down.
 
+
+## JEP Messages
+
+The JEP protocol is based on message passing, with message content represented in JSON.
+There are several kinds of messages which all have a specific structure as described in the sections below.
+
+### Message Format
+
+A JEP message consists of a JSON part and an optional binary part.
+The latter is used to transfer binary data efficiently without transcoding or escaping.
+
+A message further has a minimal header which tells the length of the overall message and the length of the JSON part.
+The length of the binary part is the difference between the overall length and the JSON length.
+Message lengths are given in ASCII characters, separated by a comma and terminated by the opening curly brace of the JSON object:
+
+    <overall length>,<json length>{<json object>}<binary data>
+
+Message length values exclude the header length.
+
+Example:
+
+    25,19{"kind": "request"}xndjs318,18{"next":"message"}
+
+         |<--       25        -->|     |<--     18   -->|
+         |<--    19     -->|           |<--     18   -->|
+
+The example shows two messages in a stream.
+The first message has an overall length of 25 bytes and a JSON length of 19 bytes.
+Thus the binary length is 25 - 19 = 6 bytes.
+
+The second message follows immediately after the first one, having an overall length of 18 bytes, a JSON length of 18 and no binary part.
+
+### Encoding
+
+As the JEP protocol uses JSON, the encoding of messages is UTF-8 by definition.
+However, the protocol further restricts UTF-8 to only 7-BIT-ASCII characters, which effectively makes the protocol encoding 7-BIT-ASCII (or US-ASCII), which is valid UTF-8.
+
+Frontends and backends should not apply any transcoding to the data found in input files.
+The reason is, that most often information about an input file's encoding is not reliable.
+If the assumption of the source encoding is wrong, transcoding just makes things worse: either data is misinterpreted or information is lost due to character replacement.
+
+Instead, data should be passed as is, or in other words: it should be interpreted as "binary" data. 
+Since the JEP protocol is restricted to 7-BIT-ASCII, all non 7-BIT-ASCII characters in the JSON part of the messages are escaped using the following pattern: 
+Each byte with a value of 0x80 or higher results in three 7-BIT-ASCII characters: a leading "%" and two hexadecimal figures in lower case.
+In addition, the character "%" is escaped in the same way, i.e. "%" will always be escaped as "%25" ("%" has byte value 0x25 in 7-BIT-ASCII).
+
+Example:
+
+The word "Übung" (german: exercise), encoded in ISO-8859-1 would result in the string:
+"%dcbung" (the "Ü" Umlaut has a byte value of 0xdc is ISO-8859-1).
+
+Note that the binary part of a JEP message doesn't require escaping and thus significantly improves performance.
+
+### Message Schema 
+
+The protocol description below uses a simple notation to specify the structure of the different kinds of messages.
+A message schema is defined by the keyword "message" followed by a textual message identifier.
+
+    message <message identifier>
+
+In JSON format, the message identifier is assigned to the property "message" as a string:
+
+    {"message": "<message identifier"}
+
+Any message attributes are specified in curly braces, each on a separate line.
+Each property declaration consists of the property name, followed by a colon, an optional multiplicity declaration and the type:
+
+    message <message identifier> {
+      <attr1>: [0,*] <type>
+      ...
+    }
+
+If the multiplicity is not declared it defaults to [1,1], i.e. the property is non optional.
+An optional property is expressed by [0,1].
+List type property are properties with an upper limit greater than 1, e.g. [0,\*], [1,2], etc.
+List type attributes are represented as JSON lists in JSON format.
+
+Message properties directly correspond to JSON properties in the JSON format.
+
+There are the following predefined primitive property types:
+* String
+* Integer
+
+Enum types are declared with the keyword "enum" with the possible values following in curly braces.
+
+    enum <type identifier> {
+      <literal1>
+      ...
+    }
+
+There is a predefined enum type "Boolean" which takes the values "true" and "false":
+
+    enum Boolean {
+      true
+      false
+    }
+
+Complex types are declared separately by means of the "type" keyword and can be used to declared nested structures.
+Complex types contain property declarations just like messages.
+
+    type <type identifier> {
+      <attr1>: [0,*] <type>
+      ...
+    }
+
+In contrast to message identifiers, type identifiers don't show up in the actual JSON representation.
+Instead the type is implied by the corresponding property declaration.
+
+As an example, consider the following declaration:
+
+    message FoodOrder {
+
+    }
+
+    type 
 
 
 ## Backend Startup
@@ -127,7 +241,15 @@ In particular, they should send this message when the frontend is shut down by i
 Since frontends may miss to send the shutdown command, backends should implement a timeout mechanism and shutdown automatically when the timeout expires.
 Note, that the protocol is designed in a way that allows backends to shut down without any loss of information.
 
+
 ## Content Synchronization
+
+    message ContentSync {
+      file: String             // file name
+      start: [0,1] Integer     // update region start byte index, default: 0
+      end: [0,1] Integer       // update region end byte index, default: last byte
+    }
+
 
 ## Syntax Highlighting
 
