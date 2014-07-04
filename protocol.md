@@ -38,15 +38,15 @@ The latter is used to transfer binary data efficiently without transcoding or es
 
 A message further has a minimal header which tells the length of the overall message and the length of the JSON part.
 The length of the binary part is the difference between the overall length and the JSON length.
-Message lengths are given in ASCII characters, separated by a comma and terminated by the opening curly brace of the JSON object:
+Message lengths are given in ASCII characters, separated by a colon and terminated by the opening curly brace of the JSON object:
 
-    <overall length>,<json length>{<json object>}<binary data>
+    <overall length>:<json length>{<json object>}<binary data>
 
 Message length values exclude the header length.
 
 Example:
 
-    25,19{"kind": "request"}xndjs318,18{"next":"message"}
+    25:19{"kind": "request"}xndjs318:18{"next":"message"}
 
          |<--       25        -->|     |<--     18   -->|
          |<--    19     -->|           |<--     18   -->|
@@ -85,9 +85,9 @@ A message schema is defined by the keyword "message" followed by a textual messa
 
     message <message identifier>
 
-In JSON format, the message identifier is assigned to the property "message" as a string:
+In JSON format, the message identifier is assigned to the property "\_message" as a string:
 
-    {"message": "<message identifier"}
+    {"_message": "<message identifier"}
 
 Any message attributes are specified in curly braces, each on a separate line.
 Each property declaration consists of the property name, followed by a colon, an optional multiplicity declaration and the type:
@@ -132,6 +132,13 @@ Complex types contain property declarations just like messages.
 
 In contrast to message identifiers, type identifiers don't show up in the actual JSON representation.
 Instead the type is implied by the corresponding property declaration.
+
+If a message makes use of the binary data part, this is indicated by the special keyword "binary" used within the curly braces:
+
+    message <message identifier> {
+      ...
+      binary
+    }
 
 As an example, consider the following declaration:
 
@@ -244,12 +251,67 @@ Note, that the protocol is designed in a way that allows backends to shut down w
 
 ## Content Synchronization
 
+File content synchronization ensures that the backend "sees" the same file content as the frontent. Therefore, whenever a file is changed by the frontend, the frontend needs to send the changes to the backend. 
+
+The backend may use the contents of any number of files in the file system to determine its behavior (e.g. provide "jump to definition" links). As soon as a file is opened in the frontend though, the backend may no longer use the contents from the file system as the contents shown in the frontend might differ (either because the user started editing or because the file changed in the file system and wasn't reloaded yet). For that reason, the frontend needs to tell the backend whenever it opens a file. 
+
+This is done by sending a synchronization message with the full file contents. Note that sending a notification only and letting the backend load the file from the file system is not sufficient as the file may change before the backend actually loads it. 
+
+Any subsequent changes may be transmitted by sending only partial updates.
+
+In general, a ContentSync message transports file contents in the binary message slot. This data is inserted into the backend's view of the file overwriting the bytes from the start index position to the end index position including the byte at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
+
     message ContentSync {
-      file: String             // file name
+      file: String             // absolute file name
       start: [0,1] Integer     // update region start byte index, default: 0
-      end: [0,1] Integer       // update region end byte index, default: last byte
+      end: [0,1] Integer       // update region end byte index (exclusive), default: after last byte
+      binary                   // replacement data
     }
 
+In case a partial content synchronization message (i.e. a message with a start byte index greater than 0) is sent before an initial full synchronization message, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
+
+    message OutOfSync {
+      file: String             // absolute file name
+    }
+
+[note: there may be a "check sync" message in the future which allows the backend to check its view of a file, e.g. with a checksum; if this check fails, the backend would also respond with an OutOfSync message; there could also be an additional "checksum" property which is sent with the ContentSync message ]
+
+[note: there may be a "sync from file" message in the future which instructs the backend to update its internal view from the file system; this is meant as an optimization to avoid sending large file contents; in this case there should either be a checksum included in the message or frontend should send a "check sync" message and the backend would possibly send an OutOfSync message ]
+
+## Problem Markers
+
+Whenever the backend detects a change in the known problems, it sends a ProblemUpdate message. Typically, this will happen some time after the frontend sent a ContentSync message.
+
+Problem updates can also be incremental. This happens on two levels: On the first level, update information may only be sent for a subset of all model files if the "partial" property is set to true. In this case, only the problems of the named files will be updated, the problem lists of any other files sent earlier remain unchanged. On the second level, problem updates per file be partial as well. If start and/or end index are set, the list of problems transmitted will used to replace the existing problems in the given range.
+
+    message ProblemUpdate {
+      fileProblems: [0,*] FileProblems
+      partial: [0,1] Boolean    // if true, the fileProblems list contains updates for
+                                // a subset of the files, default: false
+    }
+
+    type FileProblems {
+      file: String              // absolute file name
+      problems: [0,*] Problem
+      total: [0,1] Integer      // total number of problems if the number of returned 
+                                // problems is smaller than the real number of problems
+      start: [0,1] Integer      // update region start problem index, default: 0
+      end: [0,1] Integer        // update region end problem index (exclusive), default: after last problem
+    }
+
+    type Problem {
+      message: String
+      severity: SeverityEnum
+      line: Integer
+    }
+
+    enum SeverityEnum {
+      debug
+      info
+      warn
+      error
+      fatal
+    }
 
 ## Syntax Highlighting
 
@@ -257,6 +319,5 @@ Note, that the protocol is designed in a way that allows backends to shut down w
 
 ## Outline information
 
-## Error Markers
 
 
