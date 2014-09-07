@@ -251,9 +251,15 @@ Note, that the protocol is designed in a way that allows backends to shut down w
 
 ## Content Synchronization
 
-File content synchronization ensures that the backend "sees" the same file content as the frontent. Therefore, whenever a file is changed by the frontend, the frontend needs to send the changes to the backend. 
+File content synchronization ensures that the backend "sees" the same file content as the frontent and it gives backends a chance to change the content edited in the frontent. This means that content synchronization in general is bidirectional.
 
-The backend may use the contents of any number of files in the file system to determine its behavior (e.g. provide "jump to definition" links). As soon as a file is opened in the frontend though, the backend may no longer use the contents from the file system as the contents shown in the frontend might differ (either because the user started editing or because the file changed in the file system and wasn't reloaded yet). For that reason, the frontend needs to tell the backend whenever it opens a file. 
+However, in order to avoid inconsistencies when the frontend and the backend change things at the same time, synchronization messages from the backend to the frontend will only be accepted in certain situations and within certain time windows. More precisely, content sync messages by the backend are only allowed if this specification explicitly allows it.
+
+Whenever a file is changed by the frontend, the frontend needs to send the changes to the backend. 
+
+The backend may use the contents of any number of files in the file system to determine its behavior (e.g. provide "jump to definition" links). As long as the backend has not received a content sync message for a particular file, it assumes that the file content is the same as in the file system.
+
+As soon as a file is opened in the frontend, the backend may no longer use the contents from the file system as the contents shown in the frontend might differ (either because the user started editing or because the file changed in the file system and wasn't reloaded yet). For that reason, the frontend needs to tell the backend whenever it opens a file. 
 
 This is done by sending a synchronization message with the full file contents. Note that sending a notification only and letting the backend load the file from the file system is not sufficient as the file may change before the backend actually loads it. 
 
@@ -277,6 +283,7 @@ In case a partial content synchronization message (i.e. a message with a start b
 [note: there may be a "check sync" message in the future which allows the backend to check its view of a file, e.g. with a checksum; if this check fails, the backend would also respond with an OutOfSync message; there could also be an additional "checksum" property which is sent with the ContentSync message ]
 
 [note: there may be a "sync from file" message in the future which instructs the backend to update its internal view from the file system; this is meant as an optimization to avoid sending large file contents; in this case there should either be a checksum included in the message or frontend should send a "check sync" message and the backend would possibly send an OutOfSync message ]
+
 
 ## Problem Markers
 
@@ -312,6 +319,88 @@ Problem updates can also be incremental. This happens on two levels: On the firs
       error
       fatal
     }
+
+
+## Content Completion
+
+The frontend may ask for content completion at a certain cursor position in a given file:
+
+    message CompletionRequest {
+      file: String             // absolute file name
+      pos: Integer             // completion position, byte index after cursor
+      limit: [0,1] Integer     // maximum number of options to be returned, default: no limit
+      token: String            // request token returned in response message
+    }
+
+The request also carries an arbitrary string value token which must be repeated in the response message. This way the frontend can associate responses to previous requests.
+
+The backend may limit the number of options returned by means of the limit property. If the limit is exceeded, this will be indicated in the response message by the limitExceeded property.
+
+The backend replies by providing the completion options along with information about which part of the existing content is to be replaced. The frontend should remove the part ranging from the start position to the end position and replace it by the completion options. 
+
+    message CompletionResponse {
+      token: String            // token from request message
+      start: Integer           // insertion start position
+      end: Integer             // insertion end position
+      options: [0,*] CompletionOption
+      limitExceeded: Boolean   // set if a limit was given and the limit is exceeded
+    }
+
+    type CompletionOption {
+      display: String          // the actual option string to be shown
+      desc: [0,1] String       // short description of the option
+      semantics: [0,1] SemanticType // semantic information about the option
+      extensionId: [0,1] String // option identifier
+    }
+
+When the user has chosen an option the frontend should insert the display text. If the chose option contained an "extensionId" property, then the frontend must indicate the invocation of the option by a separate message and wait for an response by a ContentSync message. This gives the backend a chance to do more advanced insertions. The frontend must not allow users to type until the ContentSync response was received or a timeout occured. 
+
+    message CompletionInvocation {
+      extensionId: String      // extension ID as defined by the completion option "extensionId"
+    }
+
+
+## Semantics
+
+Semantic information about things like text snippets or completion options is necessary in order to present things properly to the user. For example a string should be highlighted in a different way than a number. An completion option completing a type (like a class in OO) might be highlighted different than a method or maybe a constant.
+
+At the same time this semantic information must be independant of the actual presentation attributes like the color or the font. JEP doesn't allow backends to explicitly prescribe these attributes. Instead frontends can allow users to choose coloring schemes independent of JEP or the actual language edited with JEP at a particular point of time.
+
+In order to achieve this, JEP pre-defines a set of semantic types. Frontends may associate visual styles with these types and backends may choose which types to use for the particular parts of a language. It seems practical to use terms commonly found in programming languages as the names of the semantic types because this way frontend and backend creators can have a common idea about how to highlight them. This doesn't mean of course that some entity associated with a specfic type in a specific language actually has to be the same thing. Instead it means something like "highlight this thing as you would highlight a class in C++".
+
+The following is the list of semantic things currently supported by JEP:
+  * Comment
+  * Type (e.g. datatype, class, etc.)
+  * String
+  * Number
+  * Identifier (e.g. a variable name)
+  * Keyword (e.g. programming language keywords like "if" or "for")
+  * Label (e.g. named arguments, keys in maps, etc.)
+  * Link (something cross-referencing somewhere else, e.g. a HTML link)
+  * Special1
+  * Special2
+  * Special3
+  * Special4
+  * Special5
+
+JEP commands can use these definitions by the following enum:
+
+    enum SemanticType {
+      comment
+      type
+      string
+      number
+      identifier
+      keyword
+      label
+      link
+      special1
+      special2
+      special3
+      special4
+      special5
+    }
+
 
 ## Syntax Highlighting
 
