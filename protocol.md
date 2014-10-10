@@ -289,7 +289,22 @@ In case a partial content synchronization message (i.e. a message with a start b
 
 Whenever the backend detects a change in the known problems, it sends a ProblemUpdate message. Typically, this will happen some time after the frontend sent a ContentSync message.
 
-Problem updates can also be incremental. This happens on two levels: On the first level, update information may only be sent for a subset of all model files if the "partial" property is set to true. In this case, only the problems of the named files will be updated, the problem lists of any other files sent earlier remain unchanged. On the second level, problem updates per file be partial as well. If start and/or end index are set, the list of problems transmitted will used to replace the existing problems in the given range.
+Problem updates can also be incremental. This happens on two levels: On the first level, update information may only be sent for a subset of all model files if the "partial" property is set to true. In this case, only the problems of the named files will be updated, the problem lists of any other files sent earlier remain unchanged. On the second level, problem updates per file may be partial as well. If start and/or end index are set, the list of problems transmitted will be used to replace the existing problems in the given range. If one of start/end is not given, it defaults to the first and last element respectively. Indices are zero based. The start index marks the position at which thetransmitted problem list will be inserted. The end index marks the first element which will not be replaced. The end index must be greater than or equal to the start index.
+
+Index Examples:
+
+    Assuming the following problem array:
+
+    [ a, b, c, d ]
+
+    {-, -}    replace full list (defaults are {0, 4})
+    {-, 1}    replace first element (defaults are {0, 1})
+    {1, -}    replace last 3 elements (defaults are {1, 4})
+    {0, 0}    insert at position 0
+    {0, 1}    replace element at position 0
+    {4, 4}    insert after the end (append)
+
+    
 
     message ProblemUpdate {
       fileProblems: [0,*] FileProblems
