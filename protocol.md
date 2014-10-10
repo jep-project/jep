@@ -362,13 +362,14 @@ The backend replies by providing the completion options along with information a
     }
 
     type CompletionOption {
-      display: String          // the actual option string to be shown
-      desc: [0,1] String       // short description of the option
+      insert: String           // the string to be inserted when the option is chosen
+      display: [0,1] String    // the string to be displayed to the user
+      desc: [0,1] String       // description of the option
       semantics: [0,1] SemanticType // semantic information about the option
       extensionId: [0,1] String // option identifier
     }
 
-When the user has chosen an option the frontend should insert the display text. If the chose option contained an "extensionId" property, then the frontend must indicate the invocation of the option by a separate message and wait for an response by a ContentSync message. This gives the backend a chance to do more advanced insertions. The frontend must not allow users to type until the ContentSync response was received or a timeout occured. 
+When the user has chosen an option the frontend should insert the insert text. If the chosen option contained an "extensionId" property, then the frontend must indicate the invocation of the option by a separate message and wait for an response by a ContentSync message. This gives the backend a chance to do more advanced insertions. The frontend must not allow users to type until the ContentSync response was received or a timeout occured. 
 
     message CompletionInvocation {
       extensionId: String      // extension ID as defined by the completion option "extensionId"
