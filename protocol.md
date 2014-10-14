@@ -363,8 +363,8 @@ The backend replies by providing the completion options along with information a
 
     type CompletionOption {
       insert: String           // the string to be inserted when the option is chosen
-      display: [0,1] String    // the string to be displayed to the user
       desc: [0,1] String       // description of the option
+      longDesc: [0,1] String   // longer description of the option
       semantics: [0,1] SemanticType // semantic information about the option
       extensionId: [0,1] String // option identifier
     }
