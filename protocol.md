@@ -16,7 +16,7 @@ One backend instance however, will be connected to only one frontend.
 The protocol is based on messages which are exchanged between frontend and backend via a TCP connection.
 Messages from one side don't require a response message from the other side unless explicitly noted.
 
-The message content is represented in JSON, following a certain schema for each kind of message as described below.
+The message content is serialized using msgpack, following a certain schema for each kind of message as described below.
 
 When a file is opened in an editor (frontend), the editor will figure out the backend to be used, start it and connect to it.
 
@@ -28,55 +28,28 @@ When the file or the editor is closed, the backend will be shut down.
 
 ## JEP Messages
 
-The JEP protocol is based on message passing, with message content represented in JSON.
+The JEP protocol is based on message passing, with message content represented in msgpack 2.0.
 There are several kinds of messages which all have a specific structure as described in the sections below.
 
 ### Message Format
 
-A JEP message consists of a JSON part and an optional binary part.
-The latter is used to transfer binary data efficiently without transcoding or escaping.
-
-A message further has a minimal header which tells the length of the overall message and the length of the JSON part.
-The length of the binary part is the difference between the overall length and the JSON length.
-Message lengths are given in ASCII characters, separated by a colon and terminated by the opening curly brace of the JSON object:
-
-    <overall length>:<json length>{<json object>}<binary data>
-
-Message length values exclude the header length.
-
-Example:
-
-    25:19{"kind": "request"}xndjs318:18{"next":"message"}
-
-         |<--       25        -->|     |<--     18   -->|
-         |<--    19     -->|           |<--     18   -->|
-
-The example shows two messages in a stream.
-The first message has an overall length of 25 bytes and a JSON length of 19 bytes.
-Thus the binary length is 25 - 19 = 6 bytes.
-
-The second message follows immediately after the first one, having an overall length of 18 bytes, a JSON length of 18 and no binary part.
+A JEP message consists of a single message object serialized with msgpack.
+There is no protocol frame header and no message length information.
+When receiving, frontends and backends must read input data bytes until the msgpack object is complete.
 
 ### Encoding
-
-As the JEP protocol uses JSON, the encoding of messages is UTF-8 by definition.
-However, the protocol further restricts UTF-8 to only 7-BIT-ASCII characters, which effectively makes the protocol encoding 7-BIT-ASCII (or US-ASCII), which is valid UTF-8.
 
 Frontends and backends should not apply any transcoding to the data found in input files.
 The reason is, that most often information about an input file's encoding is not reliable.
 If the assumption of the source encoding is wrong, transcoding just makes things worse: either data is misinterpreted or information is lost due to character replacement.
-
 Instead, data should be passed as is, or in other words: it should be interpreted as "binary" data. 
-Since the JEP protocol is restricted to 7-BIT-ASCII, all non 7-BIT-ASCII characters in the JSON part of the messages are escaped using the following pattern: 
-Each byte with a value of 0x80 or higher results in three 7-BIT-ASCII characters: a leading "%" and two hexadecimal figures in lower case.
-In addition, the character "%" is escaped in the same way, i.e. "%" will always be escaped as "%25" ("%" has byte value 0x25 in 7-BIT-ASCII).
 
-Example:
+Conceptually most data passed via JEP are strings: text fragments that are part of some user defined language.
+Depending on the language as well as the users input habits these strings can have any encoding.
+Since msgpack requires strings to be encoded in UTF-8 and this would lead to the problems mentioned above.
 
-The word "Übung" (german: exercise), encoded in ISO-8859-1 would result in the string:
-"%dcbung" (the "Ü" Umlaut has a byte value of 0xdc is ISO-8859-1).
-
-Note that the binary part of a JEP message doesn't require escaping and thus significantly improves performance.
+This is why JEP uses the msgpack "Binary" datatype instead whenever a string could be influenced by user input.
+Note that fixed strings defined by the JEP protocol itself do not fall into this category and therefore use the regular string type.
 
 ### Message Schema 
 
@@ -85,11 +58,11 @@ A message schema is defined by the keyword "message" followed by a textual messa
 
     message <message identifier>
 
-In JSON format, the message identifier is assigned to the property "\_message" as a string:
+The corresponding msgpack object is a Map object and the message identifier is assigned to the key "\_message" as a string:
 
     {"_message": "<message identifier"}
 
-Any message attributes are specified in curly braces, each on a separate line.
+Any message properties are specified in curly braces, each on a separate line.
 Each property declaration consists of the property name, followed by a colon, an optional multiplicity declaration and the type:
 
     message <message identifier> {
@@ -100,13 +73,16 @@ Each property declaration consists of the property name, followed by a colon, an
 If the multiplicity is not declared it defaults to [1,1], i.e. the property is non optional.
 An optional property is expressed by [0,1].
 List type property are properties with an upper limit greater than 1, e.g. [0,\*], [1,2], etc.
-List type attributes are represented as JSON lists in JSON format.
+List type attributes are represented as msgpack Array objects.
 
-Message properties directly correspond to JSON properties in the JSON format.
+Message properties directly correspond to key/value pairs in the msgpack Map object.
+Property names (the keys) are represented by msgpack String objects.
 
-There are the following predefined primitive property types:
-* String
-* Integer
+For the values, there are the following predefined primitive property types:
+* String  -> msgpack "Binary"
+* Integer -> msgpack "Integer"
+
+Note that string values are not represented by msgpack "String" type, but by the "Binary" type in order to avoid encoding problems.
 
 Enum types are declared with the keyword "enum" with the possible values following in curly braces.
 
@@ -115,12 +91,16 @@ Enum types are declared with the keyword "enum" with the possible values followi
       ...
     }
 
+Values of such enum types are represented by msgpack "String" objects.
+
 There is a predefined enum type "Boolean" which takes the values "true" and "false":
 
     enum Boolean {
       true
       false
     }
+
+This special type is represented by the msgpack "Boolean" type.
 
 Complex types are declared separately by means of the "type" keyword and can be used to declared nested structures.
 Complex types contain property declarations just like messages.
@@ -130,23 +110,8 @@ Complex types contain property declarations just like messages.
       ...
     }
 
-In contrast to message identifiers, type identifiers don't show up in the actual JSON representation.
+In contrast to message identifiers, type identifiers don't show up in the actual msgpack objects.
 Instead the type is implied by the corresponding property declaration.
-
-If a message makes use of the binary data part, this is indicated by the special keyword "binary" used within the curly braces:
-
-    message <message identifier> {
-      ...
-      binary
-    }
-
-As an example, consider the following declaration:
-
-    message FoodOrder {
-
-    }
-
-    type 
 
 
 ## Backend Startup
@@ -265,13 +230,13 @@ This is done by sending a synchronization message with the full file contents. N
 
 Any subsequent changes may be transmitted by sending only partial updates.
 
-In general, a ContentSync message transports file contents in the binary message slot. This data is inserted into the backend's view of the file overwriting the bytes from the start index position to the end index position including the byte at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
+In general, a ContentSync message transports file contents via the "data" property. This data is inserted into the backend's view of the file overwriting the bytes from the start index position to the end index position including the byte at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
 
     message ContentSync {
       file: String             // absolute file name
       start: [0,1] Integer     // update region start byte index, default: 0
       end: [0,1] Integer       // update region end byte index (exclusive), default: after last byte
-      binary                   // replacement data
+      data: String             // replacement data
     }
 
 In case a partial content synchronization message (i.e. a message with a start byte index greater than 0) is sent before an initial full synchronization message, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
@@ -369,7 +334,7 @@ The backend replies by providing the completion options along with information a
       extensionId: [0,1] String // option identifier
     }
 
-When the user has chosen an option the frontend should insert the insert text. If the chosen option contained an "extensionId" property, then the frontend must indicate the invocation of the option by a separate message and wait for an response by a ContentSync message. This gives the backend a chance to do more advanced insertions. The frontend must not allow users to type until the ContentSync response was received or a timeout occured. 
+When the user has chosen an option the frontend should insert the insert text. If the chosen option contained an "extensionId" property, then the frontend must indicate the invocation of the option by a separate message and wait for an response by a ContentSync message. This gives the backend a chance to do more advanced insertions. The frontend must not allow users to type until the ContentSync response was received or a timeout occurred. 
 
     message CompletionInvocation {
       extensionId: String      // extension ID as defined by the completion option "extensionId"
