@@ -75,6 +75,10 @@ An optional property is expressed by [0,1].
 List type property are properties with an upper limit greater than 1, e.g. [0,\*], [1,2], etc.
 List type attributes are represented as msgpack Array objects.
 
+Note that in most cases certain default values are assumed when optional properties are omitted.
+Omitting a property means that neither the key, nor the value are transmitted in the corresponding message.
+Default values for each optional message property will be described below.
+
 Message properties directly correspond to key/value pairs in the msgpack Map object.
 Property names (the keys) are represented by msgpack String objects.
 
