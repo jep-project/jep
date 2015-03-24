@@ -389,6 +389,80 @@ JEP commands can use these definitions by the following enum:
 
 ## Syntax Highlighting
 
+Generally speaking there are the following kinds of highlighting:
+1. static highlighting, based on the syntax
+2. dynamic or "semantic" highlighting based on some underlying semantics
+3. built-in highlighting
+
+For JEP this means that static highlighting can be done by the frontend plugin on it's own after receiving the highlighting rules from the backend.
+For the dynamic highlighting, the backend would continuously send updates of highlighted regions to the frontend when the editor content is changed.
+
+Built-in highlighting is used in the case that JEP supports an internal DSL and the frontend editor already has a highlighting for the host language.
+In this case it probably wouldn't make sense to try to "improve" the highlighting, the editor user is already familiar with.
+Only the combination of built-in and dynamic highlighting could make sense if an editor can do that.
+
+
+### Editor Capabilities
+
+A quick survey of editors and their syntax highlighting capabilities:
+
+* Textmate: regular expressions, oniguruma RE
+* Sublime: uses Textmate syntax definitions
+* Atom: uses Textmate syntax definitions (or very similar: there is an automatic converter)
+* vim: regular expressions, own flavour
+* emacs: simple keywords (generic mode), but also higlighting via regexps (emacs style)
+* notepad++: User Defined Language (simple definition of keywords, etc) or write your own lexer
+* Eclipse: write your own highlighter
+* Visual Studio: write your own highlighter
+* BBedit/TextWrangler: keyword list plus "special language features" (open block comment, open string, etc.)
+* UltraEdit: no plugins
+
+Obviously, the Textmate syntax definition is the most popular one as it's used by 3 different editors.
+
+There are basically 3 different classes of capabilities:
+1. write arbitrary highlighters (notepad++, Eclipse, Visual Studio)
+2. highlight via regular expressions (Textmate, Sublime, Atom, vim, emacs)
+3. highlight via a list of keywords and some other special features (BBedit/TextWrangler)
+4. support of dynamic highlighting (Eclipse, Visual Studio, vim (?), notepad++ (?))
+
+Given that only a subset of editors is capable of supporting dynamic highlighting, dynamic highlighting is an optional feature of JEP. 
+Editors which don't support it just won't show this additional form of highlighting.
+This also means, that any language should provide static highlighting and not rely on dynamic highlighting only (which would be a bad idea due to performance reasons anyway).
+
+Another important capability of editors is if they can create syntax definitions dynamically.
+This is required since the frontend will only find out about the highlighting definitions at runtime and also 
+backends are free to change the definitions from one invocation to the next (e.g. because an older/newer version of the language was detected).
+A workaround for editors which don't support dynamic reloading could be to create a language definition file once and then require the user to restart the editor.
+After the restart the new language highlighting would be available as long as the backend doesn't announce a change.
+In the latter case, the process would have to be repeated.
+
+### Static Highlighting
+
+For the static highlighting, a suitable definition format must be defined.
+The format should be done in a way that many editors can support it.
+The simplest and most compatible form would be class 3 above, i.e. just defining a list of keywords, comment syntax, fold markers, etc.
+Editors which support the more powerful regular expression class 2 could probably support this simpler class without problems.
+
+In order to gain maximum compatibility static highlighting definitions could be layered:
+1. keywords (as a plain list, no regular expression)
+2. regular expressions
+
+In case of regular expressions, the regular expression flavour has to be defined.
+This should be an easy to parse subset of a common regular expression language as the regular expressions might need to be rewritten in order to match the editor's flavour.
+
+
+### Dynamic Highlighting
+
+For dynamic highlighting, the backend sends messages which assign semantics to ranges of characters in a file.
+As soon as a frontend receives such a message, it highlights the respective characters according the semantics.
+When the user inserts or removes file content, the frontend must move any existing dynamic highlighting regions with the user input.
+Otherwise the highlighting would be wrong or would have to be removed until the backend sends the next update.
+
+### Built-in Highlighting
+
+In case a language should use built-in highlighting, the backend would either send no static highlighting definition or give the frontend a hint which built-in highlighting to use.
+
+
 ## Folding
 
 ## Outline information
