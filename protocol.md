@@ -327,7 +327,7 @@ The backend replies by providing the completion options along with information a
       start: Integer           // insertion start position
       end: Integer             // insertion end position
       options: [0,*] CompletionOption
-      limitExceeded: Boolean   // set if a limit was given and the limit is exceeded
+      limitExceeded: Boolean   // set if a limit was given and the limit is exceeded, default: false
     }
 
     type CompletionOption {
