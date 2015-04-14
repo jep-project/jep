@@ -193,7 +193,7 @@ There can be many files from various locations in the file system which are asso
 
 ## Backend Alive Message
 
-As soon as the frontend has opened the connection to the backend, the backend should start to send alive messages once every 1 second.
+As soon as the frontend has opened the connection to the backend, the backend should start to send alive messages once every 1 minute.
 This way, frontends can check if a backend is still alive and restart it if necessary.
 
     message BackendAlive
@@ -327,7 +327,7 @@ The backend replies by providing the completion options along with information a
       start: Integer           // insertion start position
       end: Integer             // insertion end position
       options: [0,*] CompletionOption
-      limitExceeded: Boolean   // set if a limit was given and the limit is exceeded, default: false
+      limitExceeded: [0,1] Boolean // set if a limit was given and the limit is exceeded, default: false
     }
 
     type CompletionOption {
