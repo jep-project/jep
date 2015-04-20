@@ -243,7 +243,7 @@ In general, a ContentSync message transports file contents via the "data" proper
       data: String             // replacement data
     }
 
-In case a partial content synchronization message (i.e. a message with a start byte index greater than 0) is sent before an initial full synchronization message, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
+In case a partial content synchronization message is sent with a start byte index greater than the current known length of the file, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
 
     message OutOfSync {
       file: String             // absolute file name
