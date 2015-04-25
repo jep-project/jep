@@ -39,17 +39,32 @@ When receiving, frontends and backends must read input data bytes until the msgp
 
 ### Encoding
 
-Frontends and backends should not apply any transcoding to the data found in input files.
-The reason is, that most often information about an input file's encoding is not reliable.
-If the assumption of the source encoding is wrong, transcoding just makes things worse: either data is misinterpreted or information is lost due to character replacement.
-Instead, data should be passed as is, or in other words: it should be interpreted as "binary" data. 
+JEP doesn't specify any specific string encoding for data transmission.
+Instead it's assumed that backends know best how to interpret data found in input files.
+In fact, most backends will read data directly from input files as long as the user doesn't edit those files and updates are sent via JEP.
+While reading those input files, the backends already need to assume some kind of encoding.
+When user updates are sent via the JEP protocol, the encoding (whatever it is) should not change.
+
+Therefore, frontends should not apply any transcoding to the data found in input files.
 
 Conceptually most data passed via JEP are strings: text fragments that are part of some user defined language.
-Depending on the language as well as the users input habits these strings can have any encoding.
-Since msgpack requires strings to be encoded in UTF-8 and this would lead to the problems mentioned above.
-
+However, msgpack requires strings to be encoded in UTF-8 and would thus force JEP to UTF-8 as well.
 This is why JEP uses the msgpack "Binary" datatype instead whenever a string could be influenced by user input.
+
 Note that fixed strings defined by the JEP protocol itself do not fall into this category and therefore use the regular string type.
+
+Also note that transmitting data in UTF-8 would make it impossible for backends to get the same data via the JEP protocol as they would read from the file directly:
+The reason is that the original encoding would not be known to the backend and it wouldn't be able to recreate the original data.
+Instead of adding information about the original encoding to the messages sent via the JEP protocol, frontends should send the data as it is in the file being edited.
+
+Most editors (frontends) will assume some kind of encoding when opening a file and might already do some kind of transcoding when building their internal representation of the data.
+In this case, a JEP plugin for such an editor would have to revert this transcoding before sending data to the backend.
+This is possible, because editors "know" which encoding was assumed and can most probably make this information available to the JEP plugin.
+
+Note that JEP also treats file names as binary data, not UTF-8.
+The reason is the same as mentioned above:
+File names may consist of (almost) arbitrary byte sequences and transcoding them to UTF-8 might change them in a way so that the backend can no longer associate them with a file found in file system. 
+
 
 ### Message Schema 
 
@@ -72,8 +87,8 @@ Each property declaration consists of the property name, followed by a colon, an
 
 If the multiplicity is not declared it defaults to [1,1], i.e. the property is non optional.
 An optional property is expressed by [0,1].
-List type property are properties with an upper limit greater than 1, e.g. [0,\*], [1,2], etc.
-List type attributes are represented as msgpack Array objects.
+List type properties are properties with an upper limit greater than 1, e.g. [0,\*], [1,2], etc.
+List type properties are represented as msgpack Array objects.
 
 Note that in most cases certain default values are assumed when optional properties are omitted.
 Omitting a property means that neither the key, nor the value are transmitted in the corresponding message.
@@ -83,10 +98,9 @@ Message properties directly correspond to key/value pairs in the msgpack Map obj
 Property names (the keys) are represented by msgpack String objects.
 
 For the values, there are the following predefined primitive property types:
-* String  -> msgpack "Binary"
+* String  -> msgpack "String"
+* Binary  -> msgpack "Binary"
 * Integer -> msgpack "Integer"
-
-Note that string values are not represented by msgpack "String" type, but by the "Binary" type in order to avoid encoding problems.
 
 Enum types are declared with the keyword "enum" with the possible values following in curly braces.
 
@@ -237,16 +251,16 @@ Any subsequent changes may be transmitted by sending only partial updates.
 In general, a ContentSync message transports file contents via the "data" property. This data is inserted into the backend's view of the file overwriting the bytes from the start index position to the end index position including the byte at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
 
     message ContentSync {
-      file: String             // absolute file name
+      file: Binary             // absolute file name
       start: [0,1] Integer     // update region start byte index, default: 0
       end: [0,1] Integer       // update region end byte index (exclusive), default: after last byte
-      data: String             // replacement data
+      data: Binary             // replacement data
     }
 
 In case a partial content synchronization message is sent with a start byte index greater than the current known length of the file, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
 
     message OutOfSync {
-      file: String             // absolute file name
+      file: Binary             // absolute file name
     }
 
 [note: there may be a "check sync" message in the future which allows the backend to check its view of a file, e.g. with a checksum; if this check fails, the backend would also respond with an OutOfSync message; there could also be an additional "checksum" property which is sent with the ContentSync message ]
@@ -282,7 +296,7 @@ Index Examples:
     }
 
     type FileProblems {
-      file: String              // absolute file name
+      file: Binary              // absolute file name
       problems: [0,*] Problem
       total: [0,1] Integer      // total number of problems if the number of returned 
                                 // problems is smaller than the real number of problems
@@ -291,7 +305,7 @@ Index Examples:
     }
 
     type Problem {
-      message: String
+      message: Binary           // message is binary because it may mention data from the input file
       severity: SeverityEnum
       line: Integer
     }
@@ -310,7 +324,7 @@ Index Examples:
 The frontend may ask for content completion at a certain cursor position in a given file:
 
     message CompletionRequest {
-      file: String             // absolute file name
+      file: Binary             // absolute file name
       pos: Integer             // completion position, byte index after cursor
       limit: [0,1] Integer     // maximum number of options to be returned, default: no limit
       token: String            // request token returned in response message
@@ -331,7 +345,7 @@ The backend replies by providing the completion options along with information a
     }
 
     type CompletionOption {
-      insert: String           // the string to be inserted when the option is chosen
+      insert: Binary           // the string to be inserted when the option is chosen
       desc: [0,1] String       // description of the option
       longDesc: [0,1] String   // longer description of the option
       semantics: [0,1] SemanticType // semantic information about the option
