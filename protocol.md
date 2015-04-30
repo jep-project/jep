@@ -61,10 +61,6 @@ Most editors (frontends) will assume some kind of encoding when opening a file a
 In this case, a JEP plugin for such an editor would have to revert this transcoding before sending data to the backend.
 This is possible, because editors "know" which encoding was assumed and can most probably make this information available to the JEP plugin.
 
-Note that JEP also treats file names as binary data, not UTF-8.
-The reason is the same as mentioned above:
-File names may consist of (almost) arbitrary byte sequences and transcoding them to UTF-8 might change them in a way so that the backend can no longer associate them with a file found in file system. 
-
 
 ### Message Schema 
 
@@ -251,7 +247,7 @@ Any subsequent changes may be transmitted by sending only partial updates.
 In general, a ContentSync message transports file contents via the "data" property. This data is inserted into the backend's view of the file overwriting the bytes from the start index position to the end index position including the byte at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
 
     message ContentSync {
-      file: Binary             // absolute file name
+      file: String             // absolute file name
       start: [0,1] Integer     // update region start byte index, default: 0
       end: [0,1] Integer       // update region end byte index (exclusive), default: after last byte
       data: Binary             // replacement data
@@ -260,7 +256,7 @@ In general, a ContentSync message transports file contents via the "data" proper
 In case a partial content synchronization message is sent with a start byte index greater than the current known length of the file, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
 
     message OutOfSync {
-      file: Binary             // absolute file name
+      file: String             // absolute file name
     }
 
 [note: there may be a "check sync" message in the future which allows the backend to check its view of a file, e.g. with a checksum; if this check fails, the backend would also respond with an OutOfSync message; there could also be an additional "checksum" property which is sent with the ContentSync message ]
@@ -296,7 +292,7 @@ Index Examples:
     }
 
     type FileProblems {
-      file: Binary              // absolute file name
+      file: String              // absolute file name
       problems: [0,*] Problem
       total: [0,1] Integer      // total number of problems if the number of returned 
                                 // problems is smaller than the real number of problems
@@ -305,7 +301,7 @@ Index Examples:
     }
 
     type Problem {
-      message: Binary           // message is binary because it may mention data from the input file
+      message: String
       severity: SeverityEnum
       line: Integer
     }
@@ -324,7 +320,7 @@ Index Examples:
 The frontend may ask for content completion at a certain cursor position in a given file:
 
     message CompletionRequest {
-      file: Binary             // absolute file name
+      file: String             // absolute file name
       pos: Integer             // completion position, byte index after cursor
       limit: [0,1] Integer     // maximum number of options to be returned, default: no limit
       token: String            // request token returned in response message
