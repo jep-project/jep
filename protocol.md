@@ -39,27 +39,17 @@ When receiving, frontends and backends must read input data bytes until the msgp
 
 ### Encoding
 
-JEP doesn't specify any specific string encoding for data transmission.
-Instead it's assumed that backends know best how to interpret data found in input files.
-In fact, most backends will read data directly from input files as long as the user doesn't edit those files and updates are sent via JEP.
-While reading those input files, the backends already need to assume some kind of encoding.
-When user updates are sent via the JEP protocol, the encoding (whatever it is) should not change.
+JEP uses msgpack Strings to transmit text content and msgpack uses UTF-8 to encode strings for transmission.
+This basically means, that "abstract characters" are transmitted independent of the source encoding.
 
-Therefore, frontends should not apply any transcoding to the data found in input files.
+Both frontends and backends will assume some kind of encoding when reading files into their internal abstract representation.
+In most system there is a default encoding (probably UTF-8) and frontend and backand will probably use the same as they are running on the same machine.
+Apart from that, the user will probably be able to choose a different encoding for most frontend editors.
+When using a backend which assumes some special kind of encoding, the user might need to adapt to that be choosing the same encoding in the frontend editor.
 
-Conceptually most data passed via JEP are strings: text fragments that are part of some user defined language.
-However, msgpack requires strings to be encoded in UTF-8 and would thus force JEP to UTF-8 as well.
-This is why JEP uses the msgpack "Binary" datatype instead whenever a string could be influenced by user input.
+If both frontend and backend assume the same source encoding, the abstract string representations of the data read from a file (e.g. when the backend reads a file directly) and the data transmitted via the JEP protocol will be identical. If the source encoding used by the frontend is different from the one used by the backend, a backend might for example report errors on some unsupported characters. The user should then see a error message on some strangely looking character and might consider choosing right encoding instead.
 
-Note that fixed strings defined by the JEP protocol itself do not fall into this category and therefore use the regular string type.
-
-Also note that transmitting data in UTF-8 would make it impossible for backends to get the same data via the JEP protocol as they would read from the file directly:
-The reason is that the original encoding would not be known to the backend and it wouldn't be able to recreate the original data.
-Instead of adding information about the original encoding to the messages sent via the JEP protocol, frontends should send the data as it is in the file being edited.
-
-Most editors (frontends) will assume some kind of encoding when opening a file and might already do some kind of transcoding when building their internal representation of the data.
-In this case, a JEP plugin for such an editor would have to revert this transcoding before sending data to the backend.
-This is possible, because editors "know" which encoding was assumed and can most probably make this information available to the JEP plugin.
+If a backend needs the binary representation of data transmitted by the frontend, it may encode the abstract string data received via JEP using the assumed source encoding. It would assume the same encoding as it uses when reading files directly. In case the frontend uses a different encoding, the resulting binary data may be wrong. For this reason, future extensions of the JEP protocol might include information about the source encoding used by the frontend.
 
 
 ### Message Schema 
@@ -95,7 +85,6 @@ Property names (the keys) are represented by msgpack String objects.
 
 For the values, there are the following predefined primitive property types:
 * String  -> msgpack "String"
-* Binary  -> msgpack "Binary"
 * Integer -> msgpack "Integer"
 
 Enum types are declared with the keyword "enum" with the possible values following in curly braces.
@@ -244,16 +233,16 @@ This is done by sending a synchronization message with the full file contents. N
 
 Any subsequent changes may be transmitted by sending only partial updates.
 
-In general, a ContentSync message transports file contents via the "data" property. This data is inserted into the backend's view of the file overwriting the bytes from the start index position to the end index position including the byte at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
+In general, a ContentSync message transports file contents via the "data" property. This data is inserted into the backend's view of the file overwriting the characters from the start index position to the end index position including the character at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
 
     message ContentSync {
       file: String             // absolute file name
-      start: [0,1] Integer     // update region start byte index, default: 0
-      end: [0,1] Integer       // update region end byte index (exclusive), default: after last byte
-      data: Binary             // replacement data
+      start: [0,1] Integer     // update region start character index, default: 0
+      end: [0,1] Integer       // update region end character index (exclusive), default: after last character
+      data: String             // replacement data
     }
 
-In case a partial content synchronization message is sent with a start byte index greater than the current known length of the file, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
+In case a partial content synchronization message is sent with a start character index greater than the current known length of the file, the backend will respond with a synchronization loss indication. In this case, the frontend needs to send a full synchronization message to recover from this state.
 
     message OutOfSync {
       file: String             // absolute file name
@@ -321,7 +310,7 @@ The frontend may ask for content completion at a certain cursor position in a gi
 
     message CompletionRequest {
       file: String             // absolute file name
-      pos: Integer             // completion position, byte index after cursor
+      pos: Integer             // completion position, character index after cursor
       limit: [0,1] Integer     // maximum number of options to be returned, default: no limit
       token: String            // request token returned in response message
     }
@@ -341,7 +330,7 @@ The backend replies by providing the completion options along with information a
     }
 
     type CompletionOption {
-      insert: Binary           // the string to be inserted when the option is chosen
+      insert: String           // the string to be inserted when the option is chosen
       desc: [0,1] String       // description of the option
       longDesc: [0,1] String   // longer description of the option
       semantics: [0,1] SemanticType // semantic information about the option
