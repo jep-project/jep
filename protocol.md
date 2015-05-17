@@ -348,7 +348,7 @@ When the user has chosen an option the frontend should insert the insert text. I
 
 Semantic information about things like text snippets or completion options is necessary in order to present things properly to the user. For example a string should be highlighted in a different way than a number. An completion option completing a type (like a class in OO) might be highlighted different than a method or maybe a constant.
 
-At the same time this semantic information must be independant of the actual presentation attributes like the color or the font. JEP doesn't allow backends to explicitly prescribe these attributes. Instead frontends can allow users to choose coloring schemes independent of JEP or the actual language edited with JEP at a particular point of time.
+At the same time this semantic information must be independent of the actual presentation attributes like the color or the font. JEP doesn't allow backends to explicitly prescribe these attributes. Instead frontends can allow users to choose coloring schemes independent of JEP or the actual language edited with JEP at a particular point of time.
 
 In order to achieve this, JEP pre-defines a set of semantic types. Frontends may associate visual styles with these types and backends may choose which types to use for the particular parts of a language. It seems practical to use terms commonly found in programming languages as the names of the semantic types because this way frontend and backend creators can have a common idea about how to highlight them. This doesn't mean of course that some entity associated with a specfic type in a specific language actually has to be the same thing. Instead it means something like "highlight this thing as you would highlight a class in C++".
 
@@ -418,11 +418,11 @@ A quick survey of editors and their syntax highlighting capabilities:
 
 Obviously, the Textmate syntax definition is the most popular one as it's used by 3 different editors.
 
-There are basically 3 different classes of capabilities:
-1. write arbitrary highlighters (notepad++, Eclipse, Visual Studio)
-2. highlight via regular expressions (Textmate, Sublime, Atom, vim, emacs)
-3. highlight via a list of keywords and some other special features (BBedit/TextWrangler)
-4. support of dynamic highlighting (Eclipse, Visual Studio, vim (?), notepad++ (?))
+There are basically 4 different classes of capabilities:
+1. dynamic highlighting (Eclipse, Visual Studio, vim (?), notepad++ (?))
+2. write arbitrary static highlighters (notepad++, Eclipse, Visual Studio)
+3. highlight via regular expressions (Textmate, Sublime, Atom, vim, emacs)
+4. highlight via a list of keywords and some other special features (BBedit/TextWrangler)
 
 Given that only a subset of editors is capable of supporting dynamic highlighting, dynamic highlighting is an optional feature of JEP. 
 Editors which don't support it just won't show this additional form of highlighting.
@@ -437,18 +437,65 @@ In the latter case, the process would have to be repeated.
 
 ### Static Highlighting
 
-For the static highlighting, a suitable definition format must be defined.
-The format should be done in a way that many editors can support it.
-The simplest and most compatible form would be class 3 above, i.e. just defining a list of keywords, comment syntax, fold markers, etc.
-Editors which support the more powerful regular expression class 2 could probably support this simpler class without problems.
+For static highlighting, a suitable definition format is needed which can be supported by as many editors as possible.
+The simplest and most compatible form is class 4 as defined above, i.e. just defining a list of keywords, comment syntax, fold markers, etc.
+Editors which support the more powerful regular expression class 3 can support this simpler class without problems.
+The same is true for the even more powerful classes 1 and 2.
 
-In order to gain maximum compatibility static highlighting definitions could be layered:
-1. keywords (as a plain list, no regular expression)
-2. regular expressions
+In order to gain maximum compatibility static highlighting definitions are layered:
+1. Keywords
+2. Patterns based on Regular Expressions
 
-In case of regular expressions, the regular expression flavour has to be defined.
-This should be an easy to parse subset of a common regular expression language as the regular expressions might need to be rewritten in order to match the editor's flavour.
+The static syntax definition is transmitted by the backend as a StaticSyntax message.
+This message contains everything the frontend needs to know in order to do the static highlighting for a particular language.
+In contrast to dynamic highlighting, there are no incremental updates of the definition:
+If the backend sends a new StaticSyntax message, its contents replace all definitions by the last message.
 
+Static syntax is defined per backend connection, not per file:
+As soon as a frontend receives a StaticSyntax message via a particular backend connection, it should apply the highlighting to all files handled by the connected backend instance.
+
+    message StaticSyntax {
+      keywords: [0,*] KeywordDef  // keyword type definitions
+      patterns: [0,*] PatternDef  // pattern type definitions
+    }
+
+#### Keyword Highlighting
+
+    type KeyworkDef {
+      keywords: [1,*] String
+      semantics: SemanticType
+    }
+
+#### Pattern Highlighting
+
+There is a simple pattern matching rule using a single regular expression. The string on which the pattern matches is highlighted according to the SemanticType.
+
+    type PatternDef {
+      regexp: String
+      semantics: SemanticType
+    }
+
+In the future, there could also be a region type highlighting using a regular expression to detect the start of the region and one to detect the end of the region.
+Another future option is to make keyword and pattern definitions context specific, i.e. let them match only within a particular region.
+
+#### Regular Expression Syntax
+
+JEP defines its own regular expression flavour. 
+The goal is to use a set of well known and wide spread regular expression features which are supported by most of the editors.
+Even though the syntax might not we the same for the editors, as long as the feature is the same, the syntax can be transformed by the frontend plugin.
+
+WORK IN PROGRESS: we need to find a proper set of features here
+
+  $             beginning of line
+  ^             end of line
+  \w            word character
+  \s            whitespace character
+  \W
+  \S
+  [...]
+  [^...]
+  *
+  +
 
 ### Dynamic Highlighting
 
