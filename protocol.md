@@ -461,7 +461,7 @@ As soon as a frontend receives a StaticSyntax message via a particular backend c
 
 #### Keyword Highlighting
 
-    type KeyworkDef {
+    type KeywordDef {
       keywords: [1,*] String
       semantics: SemanticType
     }
