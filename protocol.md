@@ -43,9 +43,9 @@ JEP uses msgpack Strings to transmit text content and msgpack uses UTF-8 to enco
 This basically means, that "abstract characters" are transmitted independent of the source encoding.
 
 Both frontends and backends will assume some kind of encoding when reading files into their internal abstract representation.
-In most system there is a default encoding (probably UTF-8) and frontend and backand will probably use the same as they are running on the same machine.
+In most system there is a default encoding (probably UTF-8) and frontend and backend will probably use the same as they are running on the same machine.
 Apart from that, the user will probably be able to choose a different encoding for most frontend editors.
-When using a backend which assumes some special kind of encoding, the user might need to adapt to that be choosing the same encoding in the frontend editor.
+When using a backend which assumes some special kind of encoding, the user might need to adapt to that by choosing the same encoding in the frontend editor.
 
 If both frontend and backend assume the same source encoding, the abstract string representations of the data read from a file (e.g. when the backend reads a file directly) and the data transmitted via the JEP protocol will be identical. If the source encoding used by the frontend is different from the one used by the backend, a backend might for example report errors on some unsupported characters. The user should then see a error message on some strangely looking character and might consider choosing right encoding instead.
 
