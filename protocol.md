@@ -410,7 +410,7 @@ A quick survey of editors and their syntax highlighting capabilities:
 * Atom: uses Textmate syntax definitions (or very similar: there is an automatic converter)
 * vim: regular expressions, own flavour
 * emacs: simple keywords (generic mode), but also higlighting via regexps (emacs style)
-* notepad++: User Defined Language (simple definition of keywords, etc) or write your own lexer
+* notepad++: User Defined Language (simple definition of keywords, etc) or write your own lexer, part of an XML document that holds _all_ custom languages
 * Eclipse: write your own highlighter
 * Visual Studio: write your own highlighter
 * BBedit/TextWrangler: keyword list plus "special language features" (open block comment, open string, etc.)
@@ -435,7 +435,44 @@ A workaround for editors which don't support dynamic reloading could be to creat
 After the restart the new language highlighting would be available as long as the backend doesn't announce a change.
 In the latter case, the process would have to be repeated.
 
-### Static Highlighting
+### Prepackaged Static Highlighting Definitions
+
+As it is difficult to come up with a reasonable generalization of static and editor-local syntax descriptions that still take advantage of
+editor-specific ways  to optimally realize a particular highlighting, JEP allows editor-specific syntax definitions to be exchanged between
+frontend and backend.
+
+The frontend initiates the exchange of such a definition through a `SyntaxRequest` message, giving the desired syntax format as well as an
+optional set of file extensions for which to query for syntax definitions. Note that depending on how the frontend needs to import the definitions it may be much more
+efficient to download _all_ definitions at once (e.g. to force only a single editor restart etc.).
+
+    message StaticSyntaxRequest {
+        format: FormatType              // format in which syntax defintions are requested
+        fileExtensions: [0,*] String    // list of extensions fow which syntax definitions are requested, if empty, all definitions are requested from backend
+    }
+    
+The backend then returns the available definitions through a `StaticSyntaxList` response message (TODO: delete or rename name clash with message below):
+
+    message StaticSyntaxList {
+        format: FormatType              // format in which syntax defintions are requested
+        syntaxes: [0,*] StaticSyntax    // list of syntaxes that match the request, may be empty of no match was found
+    }
+
+    type StaticSyntax {
+        fileExtension: String           // file extension for which syntax is to be used
+        definition: Binary              // syntax definition in specified format        
+    }
+    
+If the backend does not have syntax definitions in the requested format, the frontend may query again in another format and subsequently try to convert, e.g. from the
+wellknown Textmate format to an internal representation.
+
+The following is the list of currently supported formats:
+
+    enum FormatType {
+        textmate,
+        vim
+    }
+
+### Static Highlighting Abstraction
 
 For static highlighting, a suitable definition format is needed which can be supported by as many editors as possible.
 The simplest and most compatible form is class 4 as defined above, i.e. just defining a list of keywords, comment syntax, fold markers, etc.
