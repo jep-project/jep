@@ -447,22 +447,23 @@ efficient to download _all_ definitions at once (e.g. to force only a single edi
 
     message StaticSyntaxRequest {
         format: FormatType              // format in which syntax defintions are requested
-        fileExtensions: [0,*] String    // list of extensions fow which syntax definitions are requested, if empty, all definitions are requested from backend
+        fileExtensions: [0,*] String    // list of extensions for which syntax definitions are requested, if empty, all definitions are requested from backend
     }
     
 The backend then returns the available definitions through a `StaticSyntaxList` response message (TODO: delete or rename name clash with message below):
 
     message StaticSyntaxList {
         format: FormatType              // format in which syntax defintions are requested
-        syntaxes: [0,*] StaticSyntax    // list of syntaxes that match the request, may be empty of no match was found
+        syntaxes: [0,*] StaticSyntax    // list of syntaxes that match the request, may be empty if no match was found
     }
 
     type StaticSyntax {
         fileExtension: String           // file extension for which syntax is to be used
-        definition: Binary              // syntax definition in specified format        
+        definition: String              // syntax definition in specified format        
     }
     
-If the backend does not have syntax definitions in the requested format, the frontend may query again in another format and subsequently try to convert, e.g. from the
+If the backend does not have syntax definitions in the requested format, it will respond with an empty list (`format` set according to requeset, `syntaxes` empty).
+In this case the frontend may query again in another format and subsequently try to convert, e.g. from the
 wellknown Textmate format to an internal representation.
 
 The following is the list of currently supported formats:
