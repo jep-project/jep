@@ -480,7 +480,7 @@ Editors which support the more powerful regular expression class 3 can support t
 The same is true for the even more powerful classes 1 and 2.
 
 In order to gain maximum compatibility static highlighting definitions are layered:
-1. Keywords
+1. Simple words
 2. Patterns based on Regular Expressions
 
 The static syntax definition is transmitted by the backend as a StaticSyntax message.
@@ -488,18 +488,19 @@ This message contains everything the frontend needs to know in order to do the s
 In contrast to dynamic highlighting, there are no incremental updates of the definition:
 If the backend sends a new StaticSyntax message, its contents replace all definitions by the last message.
 
-Static syntax is defined per backend connection, not per file:
+Static syntax is defined per backend connection, not per file.
+When a frontend has connected to the backend, the backend should send a StaticSyntax message.
 As soon as a frontend receives a StaticSyntax message via a particular backend connection, it should apply the highlighting to all files handled by the connected backend instance.
 
     message StaticSyntax {
-      keywords: [0,*] KeywordDef  // keyword type definitions
+      words: [0,*] WordsDef       // word type definitions
       patterns: [0,*] PatternDef  // pattern type definitions
     }
 
-#### Keyword Highlighting
+#### Word Highlighting
 
-    type KeywordDef {
-      keywords: [1,*] String
+    type WordsDef {
+      words: [1,*] String
       semantics: SemanticType
     }
 
@@ -513,7 +514,7 @@ There is a simple pattern matching rule using a single regular expression. The s
     }
 
 In the future, there could also be a region type highlighting using a regular expression to detect the start of the region and one to detect the end of the region.
-Another future option is to make keyword and pattern definitions context specific, i.e. let them match only within a particular region.
+Another future option is to make words and pattern definitions context specific, i.e. let them match only within a particular region.
 
 #### Regular Expression Syntax
 
