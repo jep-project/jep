@@ -446,7 +446,7 @@ optional set of file extensions for which to query for syntax definitions. Note 
 efficient to download _all_ definitions at once (e.g. to force only a single editor restart etc.).
 
     message StaticSyntaxRequest {
-        format: FormatType              // format in which syntax defintions are requested
+        format: SyntaxFormatType        // format in which syntax defintions are requested
         fileExtensions: [0,*] String    // list of extensions for which syntax definitions are requested, if empty, all definitions are requested from backend
     }
     
