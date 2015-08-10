@@ -441,7 +441,7 @@ As it is difficult to come up with a reasonable generalization of static and edi
 editor-specific ways  to optimally realize a particular highlighting, JEP allows editor-specific syntax definitions to be exchanged between
 frontend and backend.
 
-The frontend initiates the exchange of such a definition through a `SyntaxRequest` message, giving the desired syntax format as well as an
+The frontend initiates the exchange of such a definition through a `StaticSyntaxRequest` message, giving the desired syntax format as well as an
 optional set of file extensions for which to query for syntax definitions. Note that depending on how the frontend needs to import the definitions it may be much more
 efficient to download _all_ definitions at once (e.g. to force only a single editor restart etc.).
 
@@ -450,7 +450,7 @@ efficient to download _all_ definitions at once (e.g. to force only a single edi
         fileExtensions: [0,*] String    // list of extensions for which syntax definitions are requested, if empty, all definitions are requested from backend
     }
     
-The backend then returns the available definitions through a `StaticSyntaxList` response message (TODO: delete or rename name clash with message below):
+The backend then returns the available definitions through a `StaticSyntaxList` response message (TODO: delete or rename name clash with ``StaticSyntax`` message below):
 
     message StaticSyntaxList {
         format: FormatType              // format in which syntax defintions are requested
@@ -462,8 +462,8 @@ The backend then returns the available definitions through a `StaticSyntaxList` 
         definition: String              // syntax definition in specified format        
     }
     
-If the backend does not have syntax definitions in the requested format, it will respond with an empty list (`format` set according to requeset, `syntaxes` empty).
-In this case the frontend may query again in another format and subsequently try to convert, e.g. from the
+If the backend does not have syntax definitions in the requested format, it will respond with an empty list (`format` set according to request, `syntaxes` empty).
+In this case the frontend may query again for another format and subsequently try to convert, e.g. from the
 wellknown Textmate format to an internal representation.
 
 The following is the list of currently supported formats:
