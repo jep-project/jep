@@ -453,7 +453,7 @@ efficient to download _all_ definitions at once (e.g. to force only a single edi
 The backend then returns the available definitions through a `StaticSyntaxList` response message (TODO: delete or rename name clash with ``StaticSyntax`` message below):
 
     message StaticSyntaxList {
-        format: FormatType              // format in which syntax defintions are requested
+        format: SyntaxFormatType        // format in which syntax defintions are requested
         syntaxes: [0,*] StaticSyntax    // list of syntaxes that match the request, may be empty if no match was found
     }
 
@@ -468,7 +468,7 @@ wellknown Textmate format to an internal representation.
 
 The following is the list of currently supported formats:
 
-    enum FormatType {
+    enum SyntaxFormatType {
         textmate,
         vim
     }
