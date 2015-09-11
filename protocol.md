@@ -533,6 +533,8 @@ efficient to download _all_ definitions at once (e.g. to force only a single edi
         format: SyntaxFormatType        // format in which syntax defintions are requested
         fileExtensions: [0,*] String    // list of extensions for which syntax definitions are requested, if empty, all definitions are requested from backend
     }
+
+File extension strings consist of the extension without leading wildcards or dots, e.g. just `"py"` for Python files. Capitalization of the extension is irrelevant.
     
 The backend then returns the available definitions through a `StaticSyntaxList` response message (TODO: delete or rename name clash with ``StaticSyntax`` message below):
 
@@ -542,7 +544,7 @@ The backend then returns the available definitions through a `StaticSyntaxList` 
     }
 
     type StaticSyntax {
-        fileExtension: String           // file extension for which syntax is to be used
+        fileExtensions: [1,*] String    // list of file extensions for which syntax is to be used
         definition: String              // syntax definition in specified format        
     }
     
