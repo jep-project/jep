@@ -344,6 +344,41 @@ When the user has chosen an option the frontend should insert the insert text. I
     }
 
 
+## Links
+
+The frontend may ask for available hyper links at a certain cursor position in a given file:
+
+    message LinkRequest {
+      file: String             // absolute file name
+      pos: Integer             // link position, character index after cursor
+      limit: [0,1] Integer     // maximum number of options to be returned, default: no limit
+      token: String            // request token returned in response message
+    }
+
+The request carries an arbitrary string value token which must be repeated in the response message. This way the frontend can associate responses to previous requests.
+
+The backend may limit the number of links returned by means of the limit property. If the limit is exceeded, this will be indicated in the response message by the limitExceeded property.
+
+The backend replies by providing the link targets as well as the exact start and end position of the link for proper highlighting. The frontend should highlight the full link text (e.g. by underlining it) and prompt the user with the list of link targets. Once the user has chosen a link, the frontend should jump to the link target position. If only one link target is returned by the backend, the frontend may directly jump to that location without prompting the user first.
+
+If no link is present at the requested location, the backend should respond with an empty list. This avoids waiting for a timeout on the frontend side.
+
+    message LinkResponse {
+      token: String            // token from request message
+      start: Integer           // link start position
+      end: Integer             // link end position
+      links: [0,*] LinkTarget
+      limitExceeded: [0,1] Boolean // set if a limit was given and the limit is exceeded, default: false
+    }
+
+    type LinkTarget {
+      display: String          // the link name to be displayed 
+      file: String             // absolute target file name
+      pos: Integer             // target position, character index after cursor
+      desc: [0,1] String       // description of the link
+    }
+
+
 ## Semantics
 
 Semantic information about things like text snippets or completion options is necessary in order to present things properly to the user. For example a string should be highlighted in a different way than a number. An completion option completing a type (like a class in OO) might be highlighted different than a method or maybe a constant.
