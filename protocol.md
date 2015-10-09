@@ -233,7 +233,7 @@ This is done by sending a synchronization message with the full file contents. N
 
 Any subsequent changes may be transmitted by sending only partial updates.
 
-In general, a ContentSync message transports file contents via the "data" property. This data is inserted into the backend's view of the file overwriting the characters from the start index position to the end index position including the character at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices are set them to 0.
+In general, a ContentSync message transports file contents via the "data" property. This data is inserted into the backend's view of the file overwriting the characters from the start index position to the end index position including the character at the end index position. Default start and end indexes ensure that the whole content is overwritten if no indices are specified. An initial full content sync message must either omit the indices or set them to 0.
 
     message ContentSync {
       file: String             // absolute file name
@@ -378,6 +378,55 @@ If no link is present at the requested location, the backend should respond with
       desc: [0,1] String       // description of the link
     }
 
+
+## Commands
+
+The frontend may ask for available commands. Commands can be context specific or global.
+For context specific commands, the request message must include the file and cursor position,
+whereare global commands are those which don't provide this information.
+
+    message CommandRequest {
+      file: [0,1] String       // absolute file name, not present for global commands
+      pos: [0,1] Integer       // link position, character index after cursor, not present for global commands
+      token: String            // request token returned in response message
+    }
+
+The request carries an arbitrary string value token which must be repeated in the response message. This way the frontend can associate responses to previous requests.
+
+The backend replies by providing the a list of available commands.
+
+    message CommandResponse {
+      token: String            // token from request message
+      commands: [0,*] Command
+    }
+
+    type Command {
+      name: String
+      desc: [0,1] String
+      id: String               // unique id which also remains stable over time
+    }
+
+The frontend may prompt the user with the list of commands and let the user choose.
+The frontend may let the user associate keyboard shortcuts with commands (known from previous JEP sessions).
+In this case, when the user presses one of the predefined keys, the frontend may check if the associated command is still available using a CommandRequest and if so, invoke it directly.
+The frontend may also directly invoke a known command without checking availability first but must be prepared to receive a negative response from the backend.
+
+When the user invokes the command, the frontend sends the CommandInvocation message.
+For global commands, the file position of invocation may not be known and thus is optional.
+
+    message CommandInvocation {
+      file: String             // absolute file name, optional for global commands
+      pos: Integer             // link position, character index after cursor, optional for global commands
+      id: String               // id as returnd by the command request
+      token: String            // request token returned in response message
+    }
+
+Once a command has been invoked, the frontend must prevent any editing of the relevant input files until the invocation response message is received.
+In the meantime, the backend may send content sync messages as well as request parameter values.
+
+    message CommandInvocationResponse {
+      token: String            // token from request message
+    }
 
 ## Semantics
 
