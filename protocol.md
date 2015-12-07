@@ -544,6 +544,7 @@ The backend then returns the available definitions through a `StaticSyntaxList` 
     }
 
     type StaticSyntax {
+        name: String                    // usually the filename of a syntax file, but some editors may store it differently (e.g. XML fragments in NP++)
         fileExtensions: [1,*] String    // list of file extensions for which syntax is to be used
         definition: String              // syntax definition in specified format        
     }
